@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>CAD to AR Viewer</title>
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            background: #202020;
+            color: #fff;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            padding: 8px;
+            background: #303030;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        select {
+            padding: 6px 12px;
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            border-radius: 4px;
+        }
+
+        model-viewer {
+            width: 100vw;
+            height: 100%;
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <label for="fileSelect">Choose model:</label>
+        <select id="fileSelect"></select>
+    </header>
+
+    <model-viewer id="viewer"
+                  auto-rotate
+                  camera-controls
+                  exposure="1.2"
+                  shadow-intensity="1"
+                  environment-image="neutral"
+                  ar
+                  ar-modes="webxr scene-viewer quick-look"
+                  alt="CAD Model">
+    </model-viewer>
+
+    <script type="module">
+        const viewer = document.getElementById('viewer');
+        const select = document.getElementById('fileSelect');
+
+        // Fetch directory listing from Python's http.server
+        fetch('.')
+            .then(res => res.text())
+            .then(html => {
+                const glbFiles = [...html.matchAll(/href="([^"]+\.glb)"/gi)]
+                    .map(m => decodeURIComponent(m[1]));
+                if (glbFiles.length === 0) {
+                    select.innerHTML = '<option>No .glb files found</option>';
+                    return;
+                }
+                select.innerHTML = glbFiles.map(f => `<option value="${f}">${f}</option>`).join('');
+                viewer.src = glbFiles[0];
+            });
+
+        select.addEventListener('change', () => {
+            viewer.src = select.value;
+        });
+
+        viewer.addEventListener('load', () => {
+            console.log(`Loaded: ${viewer.src}`);
+        });
+    </script>
+</body>
+</html>
