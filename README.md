@@ -41,19 +41,20 @@ Built with `pythonocc-core`, `trimesh`, and `<model-viewer>`.
    conda activate cad2ar
 
 3. **Install dependencies**
+     ```bash
    conda install -c conda-forge pythonocc-core
    pip install trimesh numpy
 
-4. **How to Run**
+5. **How to Run**
    1. **Place your STEP files** (.stp / .step) in the same folder as convert_step_to_glb.py.
-   2. **Run the converter:**
-      conda activate cad2ar
-      python convert_step_to_glb.py
+   2. **Run the converter:**  
+      conda activate cad2ar  
+      python convert_step_to_glb.py  
       All STEP files in the directory will be converted into .glb files with matching names.
-   3. **Launch a simple local web server:**   
-      python -m http.server 8000
-   4. **View in your browser:**
-      http://localhost:8000/viewer.html
+   3. **Launch a simple local web server:**     
+      python -m http.server 8000  
+   4. **View in your browser:**  
+      http://localhost:8000/viewer.html  
       Use the dropdown to point to a specific .glb file.
 
 
