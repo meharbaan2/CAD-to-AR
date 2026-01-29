@@ -8,6 +8,9 @@ Built with `pythonocc-core`, `trimesh`, and `<model-viewer>`.
 ## Features
 
 - Converts `.stp` / `.step` CAD files to `.glb` (glTF Binary)
+- Processes complex CAD assemblies correctly (no part clustering)
+- Preserves all part transforms and positions
+- Fixes missing faces and one-sided walls (double-sided materials)
 - Processes all STEP files in a folder automatically
 - View converted models directly in the browser with rotation and zoom
 - AR support on compatible devices (WebXR / Scene Viewer / Quick Look)
@@ -43,7 +46,7 @@ Built with `pythonocc-core`, `trimesh`, and `<model-viewer>`.
 3. **Install dependencies**
      ```bash
    conda install -c conda-forge pythonocc-core
-   pip install trimesh numpy
+   pip install trimesh numpy scipy
 
 5. **How to Run**
    1. **Place your STEP files** (.stp / .step) in the same folder as convert_step_to_glb.py.
@@ -57,4 +60,8 @@ Built with `pythonocc-core`, `trimesh`, and `<model-viewer>`.
       http://localhost:8000/viewer.html  
       Use the dropdown to point to a specific .glb file.
 
-
+## Notes
+-STEP files exported as AP214 or AP242 are supported
+-Units are assumed to be millimeters and are converted to meters automatically
+-Assembly hierarchy and part positioning are preserved
+-Double-sided rendering avoids missing walls in thin CAD geometry
