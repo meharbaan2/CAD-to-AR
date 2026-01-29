@@ -61,7 +61,7 @@ Built with `pythonocc-core`, `trimesh`, and `<model-viewer>`.
       Use the dropdown to point to a specific .glb file.
 
 ## Notes
--STEP files exported as AP214 or AP242 are supported
--Units are assumed to be millimeters and are converted to meters automatically
--Assembly hierarchy and part positioning are preserved
--Double-sided rendering avoids missing walls in thin CAD geometry
+- STEP files exported as AP214 or AP242 are supported
+- Units are assumed to be millimeters and are converted to meters automatically
+- Assembly hierarchy and part positioning are preserved
+- Double-sided rendering avoids missing walls in thin CAD geometry
