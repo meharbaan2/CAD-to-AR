@@ -1,67 +1,127 @@
-# CADLite – CAD to GLB Converter and Web/AR Viewer
+# CADLite - CAD to GLB Converter and Web/AR Viewer
 
-Convert your **STEP (.stp / .step)** CAD files into **GLB** format for interactive 3D and AR visualization in the browser.  
-Built with `pythonocc-core`, `trimesh`, and `<model-viewer>`.
+Convert **STEP (.stp / .step)** CAD files into **GLB** for browser and AR viewing.
+The converter uses `pythonocc-core` to read STEP assemblies through XCAF/`STEPCAFControl_Reader` and exports a glTF scene that preserves assembly hierarchy, part instances, and transforms.
 
----
+Built with `pythonocc-core`, `trimesh`, `pygltflib`, `<model-viewer>`, and `three.js`.
 
 ## Features
 
-- Converts `.stp` / `.step` CAD files to `.glb` (glTF Binary)
-- Processes complex CAD assemblies correctly (no part clustering)
-- Preserves all part transforms and positions
-- Fixes missing faces and one-sided walls (double-sided materials)
-- Processes all STEP files in a folder automatically
-- View converted models directly in the browser with rotation and zoom
-- AR support on compatible devices (WebXR / Scene Viewer / Quick Look)
-- Lightweight, no framework dependencies
+- Converts `.stp` / `.step` files to `.glb`
+- Preserves assembly hierarchy instead of collapsing everything into one mesh
+- Exports individual part/component meshes with their own transforms
+- Handles nested assemblies and repeated subassemblies
+- Forces double-sided materials to reduce missing-face issues in thin CAD geometry
+- Processes all STEP files in the folder automatically
+- Includes browser viewers for quick inspection
 
----
+## What This Fixes
+
+This version is meant for STEP assemblies, not only single solid parts.
+
+Older conversion approaches often:
+
+- read the file as one flattened root shape
+- bake all transforms directly into geometry
+- lose nested subassemblies and repeated component structure
+
+This converter keeps the STEP assembly tree and writes it out as GLB nodes, so repeated parts and nested subassemblies stay separate in the exported scene.
 
 ## Requirements
 
 - Windows, macOS, or Linux
-- [Anaconda or Miniconda](https://www.anaconda.com/download)
-- Python 3.10 (recommended)
+- [Miniconda or Anaconda](https://www.anaconda.com/download)
+- Python 3.10 recommended
 
----
+## Setup
 
-## Setup Instructions (Anaconda)
+1. Install Miniconda or Anaconda.
+2. Open Anaconda Prompt or a shell where Conda is available.
+3. Create and activate the project environment:
 
-1. **Install Anaconda / Miniconda**
+```bash
+conda create -n cad2ar python=3.10
+conda activate cad2ar
+```
 
-   Download and install Miniconda from:
-   [https://docs.conda.io/en/latest/miniconda.html](https://docs.conda.io/en/latest/miniconda.html)
+4. Install dependencies:
 
-   When prompted during installation:
-   - **Do not add Conda to PATH** (keep default)
-   - After installation, open **Anaconda Prompt** from the Start Menu
+```bash
+conda install -c conda-forge pythonocc-core
+pip install trimesh numpy scipy pygltflib
+```
 
-2. **Create and activate the environment**
+## How To Run
 
-   ```bash
-   conda create -n cad2ar python=3.10
-   conda activate cad2ar
+1. Place your STEP files in the same folder as `convert_step_to_glb.py`.
+2. Activate the converter environment:
 
-3. **Install dependencies**
-     ```bash
-   conda install -c conda-forge pythonocc-core
-   pip install trimesh numpy scipy
+```bash
+conda activate cad2ar
+```
 
-5. **How to Run**
-   1. **Place your STEP files** (.stp / .step) in the same folder as convert_step_to_glb.py.
-   2. **Run the converter:**  
-      conda activate cad2ar  
-      python convert_step_to_glb.py  
-      All STEP files in the directory will be converted into .glb files with matching names.
-   3. **Launch a simple local web server:**     
-      python -m http.server 8000  
-   4. **View in your browser:**  
-      http://localhost:8000/viewer.html  
-      Use the dropdown to point to a specific .glb file.
+3. Run the converter:
+
+```bash
+python convert_step_to_glb.py
+```
+
+4. The script exports one GLB per STEP file using the pattern:
+
+```text
+<original-name>_fixed.glb
+```
+
+Example:
+
+```text
+transormer assembled.stp -> transormer assembled_fixed.glb
+```
+
+While converting, the script prints a short summary such as:
+
+- number of assemblies found
+- number of part instances exported
+- number of unique part definitions
+
+## View In Browser
+
+Start a local web server in the project folder:
+
+```bash
+python -m http.server 8000
+```
+
+Then open one of these pages:
+
+- `http://localhost:8000/viewer_parts.html`
+  Best for checking preserved part/component separation.
+- `http://localhost:8000/viewer.html`
+  Simple viewer with model selection and AR support through `<model-viewer>`.
+
+In either viewer, select the generated `_fixed.glb` file from the dropdown.
+
+## Expected Output
+
+For an assembly STEP file, the exported GLB should contain:
+
+- separate mesh nodes for leaf parts
+- parent nodes for assemblies and subassemblies
+- transforms stored as scene-node transforms instead of one merged mesh
+
+If the source STEP file contains names, those names are reused for exported nodes where possible.
 
 ## Notes
+
 - STEP files exported as AP214 or AP242 are supported
-- Units are assumed to be millimeters and are converted to meters automatically
-- Assembly hierarchy and part positioning are preserved
-- Double-sided rendering avoids missing walls in thin CAD geometry
+- Units are assumed to be millimeters and are converted to meters
+- Hierarchy is read through XCAF/STEPCAF metadata, not just a flattened root shape
+- Nested subassemblies are exported as GLB nodes
+- Double-sided rendering helps with thin walls and one-sided CAD surfaces
+
+## Troubleshooting
+
+- If `python` is not found, activate Conda first with `conda activate cad2ar`
+- If the browser does not show models, make sure you started `python -m http.server 8000` in the same folder as the GLB files
+- If you see old flattened output, make sure you are opening the new `_fixed.glb` file rather than an older `.glb`
+- If a STEP file opens but exports no parts, the file may not contain triangulatable solid/surface geometry in a form OpenCascade can mesh directly
