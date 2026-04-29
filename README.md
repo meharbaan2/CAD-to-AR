@@ -11,6 +11,8 @@ Built with `pythonocc-core`, `trimesh`, `pygltflib`, `<model-viewer>`, and `thre
 - Preserves assembly hierarchy instead of collapsing everything into one mesh
 - Exports individual part/component meshes with their own transforms
 - Handles nested assemblies and repeated subassemblies
+- Preserves STEP part colors consistently in the exported GLB
+- Creates distinct glTF materials per part type when STEP visual material data is missing
 - Forces double-sided materials to reduce missing-face issues in thin CAD geometry
 - Processes all STEP files in the folder automatically
 - Includes browser viewers for quick inspection
@@ -48,25 +50,33 @@ conda activate cad2ar
 
 ```bash
 conda install -c conda-forge pythonocc-core
-pip install trimesh numpy scipy pygltflib
+pip install -e .
 ```
 
-## How To Run
+`pythonocc-core` is installed with Conda because it is distributed most reliably through `conda-forge`. The editable package install provides the `cadconverter` command and installs the Python dependencies listed in `pyproject.toml`.
 
-1. Place your STEP files in the same folder as `convert_step_to_glb.py`.
-2. Activate the converter environment:
+## Command Line
+
+Convert one STEP file:
 
 ```bash
 conda activate cad2ar
+cadconverter convert "model.step" -o "model.glb" --overwrite --validate
 ```
 
-3. Run the converter:
+Convert every STEP file in a folder:
 
 ```bash
-python convert_step_to_glb.py
+cadconverter convert . --overwrite --validate
 ```
 
-4. The script exports one GLB per STEP file using the pattern:
+Inspect an existing GLB:
+
+```bash
+cadconverter validate "model.glb"
+```
+
+By default, folder conversion exports one GLB per STEP file using the pattern:
 
 ```text
 <original-name>_fixed.glb
@@ -83,6 +93,21 @@ While converting, the script prints a short summary such as:
 - number of assemblies found
 - number of part instances exported
 - number of unique part definitions
+
+The old script entry point still works and is equivalent to converting the current folder:
+
+```bash
+python convert_step_to_glb.py
+```
+
+Useful CLI options:
+
+- `--out-dir <folder>` writes generated GLB files to another folder
+- `--suffix <text>` changes the generated filename suffix
+- `--linear-deflection <value>` controls mesh resolution
+- `--angular-deflection <value>` controls angular mesh quality
+- `--single-sided` disables forced double-sided rendering
+- `--validate` checks colors, normals, materials, nodes, and mesh counts after export
 
 ## View In Browser
 
@@ -108,6 +133,8 @@ For an assembly STEP file, the exported GLB should contain:
 - separate mesh nodes for leaf parts
 - parent nodes for assemblies and subassemblies
 - transforms stored as scene-node transforms instead of one merged mesh
+- part colors carried into the GLB wherever the STEP file provides them
+- distinct glTF material response for metals, insulators, covers, and core-like parts
 
 If the source STEP file contains names, those names are reused for exported nodes where possible.
 
@@ -117,6 +144,8 @@ If the source STEP file contains names, those names are reused for exported node
 - Units are assumed to be millimeters and are converted to meters
 - Hierarchy is read through XCAF/STEPCAF metadata, not just a flattened root shape
 - Nested subassemblies are exported as GLB nodes
+- STEP colors are read from XCAF color assignments and written into the GLB as mesh colors
+- STEP visual materials are used when available; otherwise the exporter infers practical PBR materials from part names, colors, and available metadata
 - Double-sided rendering helps with thin walls and one-sided CAD surfaces
 
 ## Troubleshooting

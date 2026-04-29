@@ -1,0 +1,284 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>CAD Viewer - Fixed Version</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background: #202020;
+            color: #fff;
+            font-family: sans-serif;
+        }
+
+        #sidebar {
+            width: 320px;
+            background: #2b2b2b;
+            padding: 10px;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        #viewer {
+            flex: 1;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin: 4px 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .small {
+            font-size: 12px;
+            opacity: .8;
+        }
+
+        select {
+            width: 100%;
+            padding: 6px;
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            border-radius: 4px;
+        }
+
+        #status {
+            margin-top: 8px;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div><b>Parts</b></div>
+        <div class="small">Toggle visibility</div>
+
+        <div style="margin:10px 0;">
+            <div class="small">Model</div>
+            <select id="fileSelect"></select>
+        </div>
+
+        <div id="parts"></div>
+        <div id="status" class="small"></div>
+    </div>
+
+    <div id="viewer"></div>
+
+    <script src="https://unpkg.com/three@0.146.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/three@0.146.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <script>
+        const container = document.getElementById("viewer");
+        const partsPanel = document.getElementById("parts");
+        const fileSelect = document.getElementById("fileSelect");
+        const statusEl = document.getElementById("status");
+
+        function setStatus(msg) { statusEl.textContent = msg || ""; }
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x2c3138);
+        scene.fog = new THREE.Fog(0x2c3138, 3, 20);
+
+        const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 5000);
+        camera.position.set(0.4, 0.4, 0.4);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio || 1);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+
+        scene.add(new THREE.HemisphereLight(0xf4f7ff, 0x5f6875, 1.3));
+
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+        keyLight.position.set(2.5, 3, 2);
+        scene.add(keyLight);
+
+        const fillLight = new THREE.DirectionalLight(0xdbe7ff, 0.95);
+        fillLight.position.set(-2, 1.5, 2.5);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.65);
+        rimLight.position.set(-1.5, 2.5, -2.5);
+        scene.add(rimLight);
+
+        const bounceLight = new THREE.DirectionalLight(0xbfc9d6, 0.45);
+        bounceLight.position.set(0, -2, 1.5);
+        scene.add(bounceLight);
+
+        const loader = new THREE.GLTFLoader();
+
+        let currentModel = null;
+        let meshList = []; // Store all meshes with their parent transforms
+
+        function clearModel() {
+            if (currentModel) scene.remove(currentModel);
+            currentModel = null;
+            meshList = [];
+            partsPanel.innerHTML = "";
+        }
+
+        function frameToObject(obj) {
+            const box = new THREE.Box3().setFromObject(obj);
+            const size = new THREE.Vector3();
+            const center = new THREE.Vector3();
+            box.getSize(size);
+            box.getCenter(center);
+
+            controls.target.copy(center);
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const dist = maxDim * 1.8 + 0.2;
+
+            camera.position.set(center.x + dist, center.y + dist, center.z + dist);
+            camera.near = Math.max(0.001, dist / 500);
+            camera.far = dist * 50;
+            camera.updateProjectionMatrix();
+            controls.update();
+        }
+
+        // Recursive function to collect all meshes with world matrix
+        function collectMeshesWithTransforms(object, parentMatrix = new THREE.Matrix4()) {
+            const meshes = [];
+
+            // Update world matrix
+            object.updateMatrix();
+            const worldMatrix = parentMatrix.clone().multiply(object.matrix);
+
+            if (object.isMesh) {
+                // Store mesh with its world transform
+                meshes.push({
+                    mesh: object,
+                    worldMatrix: worldMatrix.clone(),
+                    originalVisible: object.visible
+                });
+
+                // Apply double-sided material
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(m => m.side = THREE.DoubleSide);
+                    } else {
+                        object.material.side = THREE.DoubleSide;
+                    }
+                }
+            }
+
+            // Recursively process children
+            for (let child of object.children) {
+                meshes.push(...collectMeshesWithTransforms(child, worldMatrix));
+            }
+
+            return meshes;
+        }
+
+        function buildPartsUI(meshes) {
+            partsPanel.innerHTML = "";
+            meshList = meshes; // Store for later use
+
+            meshes.forEach((item, idx) => {
+                const label = document.createElement("label");
+                const cb = document.createElement("input");
+                cb.type = "checkbox";
+                cb.checked = item.mesh.visible;
+                cb.onchange = () => {
+                    item.mesh.visible = cb.checked;
+                };
+
+                const name = item.mesh.name && item.mesh.name.trim()
+                    ? item.mesh.name
+                    : `Part ${idx + 1}`;
+
+                // Show position in tooltip
+                const position = new THREE.Vector3();
+                item.worldMatrix.decompose(position, new THREE.Quaternion(), new THREE.Vector3());
+                label.title = `Position: (${position.x.toFixed(3)}, ${position.y.toFixed(3)}, ${position.z.toFixed(3)})`;
+
+                label.appendChild(cb);
+                label.append(" " + name);
+                partsPanel.appendChild(label);
+            });
+        }
+
+        function loadModel(url) {
+            clearModel();
+            setStatus("Loading: " + url);
+
+            loader.load(url, (gltf) => {
+                currentModel = gltf.scene;
+                scene.add(currentModel);
+
+                // Collect all meshes with their world transforms
+                const meshes = collectMeshesWithTransforms(currentModel);
+
+                // Debug: Log mesh positions
+                console.log("Loaded meshes:");
+                meshes.forEach((item, idx) => {
+                    const position = new THREE.Vector3();
+                    item.worldMatrix.decompose(position, new THREE.Quaternion(), new THREE.Vector3());
+                    console.log(`Mesh ${idx}: ${item.mesh.name || 'unnamed'}, Position: (${position.x}, ${position.y}, ${position.z})`);
+                });
+
+                buildPartsUI(meshes);
+                frameToObject(currentModel);
+                setStatus(`Loaded ${url} (${meshes.length} meshes)`);
+            }, undefined, (err) => {
+                console.error("GLB load error:", err);
+                setStatus("Failed to load GLB: " + url);
+            });
+        }
+
+        // Find GLB files
+        fetch(".")
+            .then(r => r.text())
+            .then(html => {
+                const glbFiles = [...html.matchAll(/href="([^"]+\.glb)"/gi)]
+                    .map(m => decodeURIComponent(m[1]))
+                    .filter(f => !f.includes("/")); // keep it simple
+
+                if (!glbFiles.length) {
+                    fileSelect.innerHTML = '<option>No .glb files found</option>';
+                    setStatus("No .glb files found in this folder.");
+                    return;
+                }
+
+                fileSelect.innerHTML = glbFiles.map(f => `<option value="${f}">${f}</option>`).join("");
+                loadModel(glbFiles[0]);
+            });
+
+        fileSelect.addEventListener("change", () => loadModel(fileSelect.value));
+
+        function resize() {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h, false);
+        }
+
+        window.addEventListener("resize", resize);
+        resize();
+
+        (function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        })();
+    </script>
+</body>
+</html>
