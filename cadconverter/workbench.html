@@ -83,7 +83,8 @@
     }
 
     select,
-    input[type="text"] {
+    input[type="text"],
+    input[type="number"] {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -95,7 +96,8 @@
     }
 
     select:focus,
-    input[type="text"]:focus {
+    input[type="text"]:focus,
+    input[type="number"]:focus {
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(242, 177, 94, 0.15);
     }
@@ -165,6 +167,10 @@
       gap: 10px;
     }
 
+    .status-card {
+      grid-row: span 2;
+    }
+
     .status {
       min-height: 180px;
       white-space: pre-wrap;
@@ -214,14 +220,68 @@
     <header>
       <h1>CAD Converter Workbench</h1>
       <p class="lede">
-        One-click local testing for GLB to STEP. Use Advanced for the cleanest result:
-        it reconstructs planar CAD faces, keeps stable analytic cylinders, and promotes
-        closed shells to solids where OpenCascade accepts them.
+        One-click local testing for both directions: STEP to GLB for AR/viewer output,
+        and GLB to STEP for reconstruction experiments. Use Advanced for the cleanest
+        reverse result.
       </p>
     </header>
 
     <section class="grid">
       <div class="card">
+        <div>
+          <span class="pill">Forward</span>
+          <span class="pill">STEP -> GLB</span>
+        </div>
+
+        <div class="field">
+          <label for="stepFile">Input STEP/STP</label>
+          <select id="stepFile"></select>
+        </div>
+
+        <div class="field">
+          <label for="glbOutput">Output GLB Name</label>
+          <input id="glbOutput" type="text" spellcheck="false">
+        </div>
+
+        <div class="field">
+          <label for="linearDeflection">Linear Deflection</label>
+          <input id="linearDeflection" type="number" min="0.01" step="0.01" value="0.15">
+        </div>
+
+        <div class="field">
+          <label for="angularDeflection">Angular Deflection</label>
+          <input id="angularDeflection" type="number" min="0.01" step="0.01" value="0.25">
+        </div>
+
+        <div class="checks">
+          <label class="check">
+            <input id="doubleSided" type="checkbox" checked>
+            <span>
+              Double-sided materials
+              <small>Keeps GLB parts visible from both sides in AR/web viewers.</small>
+            </span>
+          </label>
+
+          <label class="check">
+            <input id="validateStepGlb" type="checkbox" checked>
+            <span>
+              Validate exported GLB
+              <small>Checks hierarchy, materials, colors, normals, and mesh primitives after export.</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="convertStep">Convert STEP to GLB</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div>
+          <span class="pill">Reverse</span>
+          <span class="pill">GLB -> STEP</span>
+        </div>
+
         <div class="field">
           <label for="file">Input GLB</label>
           <select id="file"></select>
@@ -276,25 +336,32 @@
         </div>
       </div>
 
-      <aside class="card">
+      <aside class="card status-card">
         <div>
           <span class="pill">Local server</span>
           <span class="pill">OpenCascade</span>
-          <span class="pill">GLB -> STEP</span>
+          <span class="pill">Two-way workbench</span>
         </div>
-        <div id="status" class="status">Loading GLB files...</div>
+        <div id="status" class="status">Loading CAD files...</div>
       </aside>
     </section>
   </main>
 
   <script>
     const fileSelect = document.querySelector("#file");
+    const stepFileSelect = document.querySelector("#stepFile");
     const modeSelect = document.querySelector("#mode");
     const outputInput = document.querySelector("#output");
+    const glbOutputInput = document.querySelector("#glbOutput");
+    const linearDeflectionInput = document.querySelector("#linearDeflection");
+    const angularDeflectionInput = document.querySelector("#angularDeflection");
+    const doubleSidedInput = document.querySelector("#doubleSided");
+    const validateStepGlbInput = document.querySelector("#validateStepGlb");
     const cylindersInput = document.querySelector("#cylinders");
     const solidsInput = document.querySelector("#solids");
     const holesInput = document.querySelector("#holes");
     const statusBox = document.querySelector("#status");
+    const convertStepButton = document.querySelector("#convertStep");
     const convertButton = document.querySelector("#convert");
     const assessButton = document.querySelector("#assess");
     const probeHolesButton = document.querySelector("#probeHoles");
@@ -311,6 +378,15 @@
       return name.replace(/\.[^.]+$/, "");
     }
 
+    function selectedStepStem() {
+      const name = stepFileSelect.value || "converted.step";
+      return name.replace(/\.[^.]+$/, "");
+    }
+
+    function defaultGlbOutputName() {
+      return `${selectedStepStem()}.glb`;
+    }
+
     function defaultOutputName() {
       const suffix = modeSelect.value === "advanced" ? "advanced" : modeSelect.value;
       return `${selectedFileStem()}_${suffix}.step`;
@@ -319,6 +395,12 @@
     function syncOutput(force = false) {
       if (force || !outputInput.value.trim()) {
         outputInput.value = defaultOutputName();
+      }
+    }
+
+    function syncGlbOutput(force = false) {
+      if (force || !glbOutputInput.value.trim()) {
+        glbOutputInput.value = defaultGlbOutputName();
       }
     }
 
@@ -348,9 +430,12 @@
     async function refreshFiles() {
       refreshButton.disabled = true;
       try {
-        const payload = await requestJson("/api/glbs");
+        const [glbPayload, stepPayload] = await Promise.all([
+          requestJson("/api/glbs"),
+          requestJson("/api/steps")
+        ]);
         fileSelect.innerHTML = "";
-        for (const file of payload.files || []) {
+        for (const file of glbPayload.files || []) {
           const name = typeof file === "string" ? file : file.name;
           const detail = typeof file === "string" ? "" : ` (${file.size_mb} MB)`;
           const option = document.createElement("option");
@@ -358,16 +443,69 @@
           option.textContent = `${name}${detail}`;
           fileSelect.appendChild(option);
         }
+        stepFileSelect.innerHTML = "";
+        for (const file of stepPayload.files || []) {
+          const name = typeof file === "string" ? file : file.name;
+          const detail = typeof file === "string" ? "" : ` (${file.size_mb} MB)`;
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = `${name}${detail}`;
+          stepFileSelect.appendChild(option);
+        }
+        syncGlbOutput(true);
         if (!fileSelect.options.length) {
-          setStatus("No GLB files found in this workbench folder.", "bad");
+          setStatus(`Found ${stepFileSelect.options.length} STEP file(s), but no GLB files yet. Convert STEP to GLB first, or add a GLB to the folder.`, stepFileSelect.options.length ? "ok" : "bad");
           return;
         }
         syncOutput(true);
-        setStatus(`Found ${fileSelect.options.length} GLB file(s). Choose one and press Convert to STEP.`, "ok");
+        setStatus(`Found ${stepFileSelect.options.length} STEP file(s) and ${fileSelect.options.length} GLB file(s).`, "ok");
       } catch (error) {
-        setStatus(`Could not list GLB files:\n${error.message}`, "bad");
+        setStatus(`Could not list workbench files:\n${error.message}`, "bad");
       } finally {
         refreshButton.disabled = false;
+      }
+    }
+
+    async function convertStep() {
+      if (!stepFileSelect.value) return;
+      convertStepButton.disabled = true;
+      setStatus(`Converting ${stepFileSelect.value} to ${glbOutputInput.value || defaultGlbOutputName()}...`);
+      try {
+        const payload = await requestJson("/api/step-to-glb", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file: stepFileSelect.value,
+            output: glbOutputInput.value || defaultGlbOutputName(),
+            linearDeflection: Number(linearDeflectionInput.value || 0.15),
+            angularDeflection: Number(angularDeflectionInput.value || 0.25),
+            doubleSided: doubleSidedInput.checked,
+            validate: validateStepGlbInput.checked
+          })
+        });
+        const validation = payload.validation;
+        const lines = [
+          "GLB export passed:",
+          `source=${payload.source}`,
+          `output=${payload.output}`,
+          `linear_deflection=${payload.linearDeflection}, angular_deflection=${payload.angularDeflection}, double_sided=${payload.doubleSided}`
+        ];
+        if (validation) {
+          lines.push(
+            `nodes=${validation.nodes}, meshes=${validation.meshes}, materials=${validation.materials}, primitives=${validation.primitives}`,
+            `colors=${validation.colors}/${validation.primitives}, normals=${validation.normals}/${validation.primitives}, named_nodes=${validation.namedNodes}/${validation.nodes}`
+          );
+        }
+        setStatus(lines.join("\n"), "ok");
+        await refreshFiles();
+        if (payload.file) {
+          fileSelect.value = payload.file;
+          syncOutput(true);
+        }
+      } catch (error) {
+        setStatus(`STEP to GLB failed:\n${error.message}`, "bad");
+      } finally {
+        convertStepButton.disabled = false;
       }
     }
 
@@ -476,8 +614,10 @@
       }
     }
 
+    stepFileSelect.addEventListener("change", () => syncGlbOutput(true));
     fileSelect.addEventListener("change", () => syncOutput(true));
     modeSelect.addEventListener("change", syncControls);
+    convertStepButton.addEventListener("click", convertStep);
     refreshButton.addEventListener("click", refreshFiles);
     validateButton.addEventListener("click", validateGlb);
     convertButton.addEventListener("click", convertGlb);

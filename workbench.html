@@ -49,6 +49,28 @@
             font-weight: 650;
         }
 
+        .section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--line);
+        }
+
+        .section-title {
+            margin: 0 0 8px;
+            color: var(--accent);
+            font-size: 13px;
+            font-weight: 750;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .hint {
+            margin: 0 0 10px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
         label {
             display: block;
             margin: 14px 0 6px;
@@ -136,35 +158,68 @@
     <aside>
         <h1>CAD Converter Workbench</h1>
 
-        <label for="fileSelect">GLB model</label>
-        <select id="fileSelect"></select>
+        <section class="section">
+            <div class="section-title">STEP to GLB</div>
+            <p class="hint">Forward export for AR/viewer use. Preserves assembly hierarchy, part names, colors, and available material data from STEP/XCAF.</p>
 
-        <label for="outputName">STEP output</label>
-        <input id="outputName" value="" />
+            <label for="stepFileSelect">STEP/STP model</label>
+            <select id="stepFileSelect"></select>
 
-        <label for="modeSelect">Reverse mode</label>
-        <select id="modeSelect">
-            <option value="advanced">Advanced guarded</option>
-            <option value="reconstructed">Reconstructed planes</option>
-            <option value="faceted">Faceted fallback</option>
-        </select>
+            <label for="glbOutputName">GLB output</label>
+            <input id="glbOutputName" value="" />
 
-        <label class="check">
-            <input id="cylinderCheck" type="checkbox" />
-            Experimental analytic cylinders
-        </label>
-        <label class="check">
-            <input id="solidCheck" type="checkbox" />
-            Experimental closed-shell solids
-        </label>
-        <label class="check">
-            <input id="holeCheck" type="checkbox" />
-            Guarded planar holes (max 48 loop points)
-        </label>
-        <button id="validateBtn">Validate GLB</button>
-        <button id="convertBtn" class="primary">Convert to STEP</button>
-        <button id="assessBtn" class="secondary">Assess Modes</button>
-        <button id="probeHolesBtn" class="secondary">Probe Holes</button>
+            <label for="linearDeflection">Linear deflection</label>
+            <input id="linearDeflection" type="number" min="0.01" step="0.01" value="0.15" />
+
+            <label for="angularDeflection">Angular deflection</label>
+            <input id="angularDeflection" type="number" min="0.01" step="0.01" value="0.25" />
+
+            <label class="check">
+                <input id="doubleSidedCheck" type="checkbox" checked />
+                Double-sided GLB materials
+            </label>
+            <label class="check">
+                <input id="stepValidateCheck" type="checkbox" checked />
+                Validate exported GLB
+            </label>
+            <button id="stepConvertBtn" class="primary">Convert STEP to GLB</button>
+        </section>
+
+        <section class="section">
+            <div class="section-title">GLB to STEP</div>
+            <p class="hint">Reverse reconstruction for CAD handoff. Advanced is the default; reconstructed is safer; faceted is the heavy fallback.</p>
+
+            <label for="fileSelect">GLB model</label>
+            <select id="fileSelect"></select>
+
+            <label for="outputName">STEP output</label>
+            <input id="outputName" value="" />
+
+            <label for="modeSelect">Reverse mode</label>
+            <select id="modeSelect">
+                <option value="advanced">Advanced guarded</option>
+                <option value="reconstructed">Reconstructed planes</option>
+                <option value="faceted">Faceted fallback</option>
+            </select>
+
+            <label class="check">
+                <input id="cylinderCheck" type="checkbox" />
+                Experimental analytic cylinders
+            </label>
+            <label class="check">
+                <input id="solidCheck" type="checkbox" />
+                Experimental closed-shell solids
+            </label>
+            <label class="check">
+                <input id="holeCheck" type="checkbox" />
+                Guarded planar holes (max 48 loop points)
+            </label>
+            <button id="validateBtn">Validate GLB</button>
+            <button id="convertBtn" class="primary">Convert GLB to STEP</button>
+            <button id="assessBtn" class="secondary">Assess Modes</button>
+            <button id="probeHolesBtn" class="secondary">Probe Holes</button>
+        </section>
+
         <button id="refreshBtn" class="secondary">Refresh Files</button>
 
         <div id="status"></div>
@@ -181,8 +236,14 @@
 
     <script>
         const fileSelect = document.getElementById("fileSelect");
+        const stepFileSelect = document.getElementById("stepFileSelect");
         const outputName = document.getElementById("outputName");
+        const glbOutputName = document.getElementById("glbOutputName");
         const modeSelect = document.getElementById("modeSelect");
+        const linearDeflection = document.getElementById("linearDeflection");
+        const angularDeflection = document.getElementById("angularDeflection");
+        const doubleSidedCheck = document.getElementById("doubleSidedCheck");
+        const stepValidateCheck = document.getElementById("stepValidateCheck");
         const cylinderCheck = document.getElementById("cylinderCheck");
         const solidCheck = document.getElementById("solidCheck");
         const holeCheck = document.getElementById("holeCheck");
@@ -190,6 +251,7 @@
         const reportEl = document.getElementById("report");
         const validateBtn = document.getElementById("validateBtn");
         const convertBtn = document.getElementById("convertBtn");
+        const stepConvertBtn = document.getElementById("stepConvertBtn");
         const assessBtn = document.getElementById("assessBtn");
         const probeHolesBtn = document.getElementById("probeHolesBtn");
         const refreshBtn = document.getElementById("refreshBtn");
@@ -228,6 +290,7 @@
         }
 
         function setBusy(isBusy) {
+            stepConvertBtn.disabled = isBusy;
             validateBtn.disabled = isBusy;
             convertBtn.disabled = isBusy;
             assessBtn.disabled = isBusy;
@@ -239,7 +302,16 @@
             return fileSelect.value;
         }
 
+        function currentStepFile() {
+            return stepFileSelect.value;
+        }
+
+        function defaultGlbOutputName(file) {
+            return file ? file.replace(/\.(stp|step)$/i, ".glb") : "";
+        }
+
         function defaultOutputName(file) {
+            if (!file) return "";
             let suffix = modeSelect.value;
             if (modeSelect.value === "reconstructed" && cylinderCheck.checked) suffix = "analytic_cylinders";
             if (modeSelect.value === "reconstructed" && solidCheck.checked) suffix += "_solids";
@@ -288,15 +360,65 @@
         async function refreshFiles() {
             setBusy(true);
             try {
-                const res = await fetch("/api/glbs");
-                const data = await res.json();
-                fileSelect.innerHTML = data.files.map((file) => `<option value="${file}">${file}</option>`).join("");
-                if (data.files.length) {
-                    outputName.value = defaultOutputName(data.files[0]);
-                    loadModel(data.files[0]);
+                const [glbRes, stepRes] = await Promise.all([
+                    fetch("/api/glbs"),
+                    fetch("/api/steps")
+                ]);
+                const glbData = await glbRes.json();
+                const stepData = await stepRes.json();
+
+                fileSelect.innerHTML = glbData.files.map((file) => `<option value="${file}">${file}</option>`).join("");
+                stepFileSelect.innerHTML = stepData.files.map((file) => `<option value="${file}">${file}</option>`).join("");
+
+                if (stepData.files.length) {
+                    glbOutputName.value = defaultGlbOutputName(stepData.files[0]);
+                }
+                if (glbData.files.length) {
+                    outputName.value = defaultOutputName(glbData.files[0]);
+                    loadModel(glbData.files[0]);
                 } else {
                     setStatus("No GLB files found.", "warn");
                 }
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function convertStepCurrent() {
+            const file = currentStepFile();
+            if (!file) return;
+            setBusy(true);
+            setStatus(`Converting ${file} to GLB...`);
+            try {
+                const res = await fetch("/api/step-to-glb", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        file,
+                        output: glbOutputName.value,
+                        linearDeflection: Number(linearDeflection.value || 0.15),
+                        angularDeflection: Number(angularDeflection.value || 0.25),
+                        doubleSided: doubleSidedCheck.checked,
+                        validate: stepValidateCheck.checked
+                    })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || "STEP to GLB conversion failed");
+                const validation = data.validation;
+                reportEl.textContent =
+                    `output=${data.output}\n` +
+                    `linear deflection=${data.linearDeflection}, angular deflection=${data.angularDeflection}, double-sided=${data.doubleSided}\n` +
+                    (validation
+                        ? `nodes=${validation.nodes}, meshes=${validation.meshes}, materials=${validation.materials}, primitives=${validation.primitives}\n` +
+                          `colors=${validation.colors}/${validation.primitives}, normals=${validation.normals}/${validation.primitives}, named nodes=${validation.namedNodes}/${validation.nodes}`
+                        : "validation skipped");
+                await refreshFiles();
+                fileSelect.value = data.file;
+                outputName.value = defaultOutputName(data.file);
+                loadModel(data.file);
+                setStatus("GLB exported and loaded in viewer", "ok");
+            } catch (err) {
+                setStatus(err.message, "warn");
             } finally {
                 setBusy(false);
             }
@@ -432,6 +554,9 @@
             outputName.value = defaultOutputName(currentFile());
             loadModel(currentFile());
         });
+        stepFileSelect.addEventListener("change", () => {
+            glbOutputName.value = defaultGlbOutputName(currentStepFile());
+        });
         modeSelect.addEventListener("change", () => {
             outputName.value = defaultOutputName(currentFile());
             cylinderCheck.disabled = modeSelect.value !== "reconstructed";
@@ -449,6 +574,7 @@
         });
         validateBtn.addEventListener("click", validateCurrent);
         convertBtn.addEventListener("click", convertCurrent);
+        stepConvertBtn.addEventListener("click", convertStepCurrent);
         assessBtn.addEventListener("click", assessCurrent);
         probeHolesBtn.addEventListener("click", probeHolesCurrent);
         refreshBtn.addEventListener("click", refreshFiles);

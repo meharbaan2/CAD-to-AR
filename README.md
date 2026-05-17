@@ -130,7 +130,7 @@ cadconverter glb-to-step "model.glb" -o "model_faceted.step" --mode faceted --ov
 The reverse path still does not recover full CAD design intent such as fillets, sketches, constraints, feature history, or NURBS. Those are later reconstruction stages.
 It reports curved and cutout-like mesh regions during reconstructed export. Guarded analytic cylinders, complete spheres, complete cones/frustums, and simple planar holes are available behind explicit flags or through `advanced` mode where safe.
 
-Start the one-click local workbench from any folder containing GLB files:
+Start the one-click local workbench from any folder containing STEP/STP or GLB files:
 
 ```bash
 cadconverter workbench --directory .
@@ -144,7 +144,10 @@ From this repository on Windows, the helper batch file does the same thing:
 start_workbench.bat
 ```
 
-The workbench lets you validate a GLB and export advanced, reconstructed, or faceted STEP from the selected model.
+The workbench has two panels:
+
+- `STEP -> GLB` exports browser/AR-ready GLB files with hierarchy, part names, colors/materials, mesh-quality controls, double-sided material control, and optional GLB validation.
+- `GLB -> STEP` validates a GLB and exports advanced, reconstructed, or faceted STEP from the selected model.
 
 By default, folder conversion exports one GLB per STEP file using the pattern:
 
@@ -182,7 +185,7 @@ Useful CLI options:
 - `primitive-selftest` verifies analytic sphere, cone, frustum, and holed-plane recovery with generated temporary GLBs
 - `assess-reconstruction --directory <folder>` compares faceted, reconstructed, and advanced GLB-to-STEP quality using read-back and topology metrics
 - `probe-holes <model.glb>` runs experimental real-model hole reconstruction in an isolated process so native crashes are contained and reported
-- `workbench --directory <folder>` starts the bundled local browser workbench for one-click GLB validation and GLB-to-STEP export
+- `workbench --directory <folder>` starts the bundled local browser workbench for one-click STEP-to-GLB export, GLB validation, and GLB-to-STEP export
 - `glb-to-step --mode advanced` runs the guarded best-available reverse path: planar reconstruction, sewing, analytic cylinders when safe, and solid promotion
 - `glb-to-step --mode reconstructed` merges connected coplanar triangles into larger planar STEP faces; this is the conservative default
 - `glb-to-step --mode faceted` exports one STEP face per mesh triangle

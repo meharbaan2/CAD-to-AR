@@ -5,6 +5,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from . import converter
 from .holeprobe import run_hole_probe
 from .reverse import glb_to_faceted_step, glb_to_reconstructed_step
 from .selftest import run_reconstruction_assessment
@@ -165,6 +166,10 @@ def _is_glb(path: Path):
     return path.is_file() and path.suffix.lower() in {".glb", ".gltf"}
 
 
+def _is_step(path: Path):
+    return path.is_file() and path.suffix.lower() in {".stp", ".step"}
+
+
 class WorkbenchHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, directory=None, **kwargs):
         self.root = Path(directory or ".").resolve()
@@ -179,6 +184,9 @@ class WorkbenchHandler(SimpleHTTPRequestHandler):
             return self._serve_workbench()
         if parsed.path == "/api/glbs":
             files = sorted(path.name for path in self.root.iterdir() if _is_glb(path))
+            return _json_response(self, 200, {"files": files})
+        if parsed.path == "/api/steps":
+            files = sorted(path.name for path in self.root.iterdir() if _is_step(path))
             return _json_response(self, 200, {"files": files})
         if parsed.path == "/api/validate":
             name = parse_qs(parsed.query).get("file", [""])[0]
@@ -195,6 +203,8 @@ class WorkbenchHandler(SimpleHTTPRequestHandler):
             return self._assess_reconstruction()
         if parsed.path == "/api/probe-holes":
             return self._probe_holes()
+        if parsed.path == "/api/step-to-glb":
+            return self._step_to_glb()
         if parsed.path != "/api/glb-to-step":
             return _json_response(self, 404, {"ok": False, "error": "Unknown endpoint"})
 
@@ -229,6 +239,38 @@ class WorkbenchHandler(SimpleHTTPRequestHandler):
         except Exception as exc:
             return _json_response(self, 400, {"ok": False, "error": str(exc)})
 
+    def _step_to_glb(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        try:
+            body = self.rfile.read(length).decode("utf-8")
+            payload = json.loads(body or "{}")
+            source = self._safe_file(payload.get("file", ""), {".stp", ".step"})
+            output_name = payload.get("output") or f"{source.stem}.glb"
+            output = self._safe_output(output_name, {".glb"})
+
+            converter.LINEAR_DEFLECTION = float(payload.get("linearDeflection", 0.15))
+            converter.ANGULAR_DEFLECTION = float(payload.get("angularDeflection", 0.25))
+            converter.FORCE_DOUBLE_SIDED = bool(payload.get("doubleSided", True))
+            converter.export_step_hierarchy(str(source), str(output))
+
+            validation = validate_glb(output) if bool(payload.get("validate", True)) else None
+            return _json_response(
+                self,
+                200,
+                {
+                    "ok": validation.ok if validation else True,
+                    "source": str(source),
+                    "output": str(output),
+                    "file": output.name,
+                    "linearDeflection": converter.LINEAR_DEFLECTION,
+                    "angularDeflection": converter.ANGULAR_DEFLECTION,
+                    "doubleSided": converter.FORCE_DOUBLE_SIDED,
+                    "validation": _report_payload(validation) if validation else None,
+                },
+            )
+        except Exception as exc:
+            return _json_response(self, 400, {"ok": False, "error": str(exc)})
+
     def _glb_to_step(self):
         length = int(self.headers.get("Content-Length", "0"))
         try:
@@ -237,7 +279,7 @@ class WorkbenchHandler(SimpleHTTPRequestHandler):
             source = self._safe_file(payload.get("file", ""), {".glb", ".gltf"})
             mode = payload.get("mode", "reconstructed")
             output_name = payload.get("output") or f"{source.stem}_{mode}.step"
-            output = self._safe_output(output_name)
+            output = self._safe_output(output_name, {".stp", ".step"})
             if mode == "faceted":
                 report = glb_to_faceted_step(source, output)
             elif mode in {"advanced", "reconstructed"}:
@@ -297,12 +339,13 @@ class WorkbenchHandler(SimpleHTTPRequestHandler):
             raise FileNotFoundError(path.name)
         return path
 
-    def _safe_output(self, name):
+    def _safe_output(self, name, suffixes):
         path = (self.root / name).resolve()
         if not path.is_relative_to(self.root):
             raise ValueError("Output must be inside the workbench folder")
-        if path.suffix.lower() not in {".stp", ".step"}:
-            raise ValueError("Output must be .stp or .step")
+        if path.suffix.lower() not in suffixes:
+            suffix_text = " or ".join(sorted(suffixes))
+            raise ValueError(f"Output must be {suffix_text}")
         return path
 
 
