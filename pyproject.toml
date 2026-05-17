@@ -21,4 +21,7 @@ dependencies = [
 cadconverter = "cadconverter.cli:main"
 
 [tool.setuptools]
-packages = ["cadconverter"]
+packages = ["cadconverter", "cadconverter.reverse"]
+
+[tool.setuptools.package-data]
+cadconverter = ["workbench.html"]

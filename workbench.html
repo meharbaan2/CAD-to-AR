@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CAD Converter Workbench</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #202327;
+            --panel: #2a2f35;
+            --panel-2: #343a42;
+            --line: #4a525d;
+            --text: #eef2f5;
+            --muted: #aeb8c2;
+            --accent: #65d0a8;
+            --accent-2: #f2b36d;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        aside {
+            border-right: 1px solid var(--line);
+            background: var(--panel);
+            padding: 16px;
+            overflow: auto;
+        }
+
+        main {
+            min-width: 0;
+            position: relative;
+        }
+
+        h1 {
+            margin: 0 0 14px;
+            font-size: 18px;
+            font-weight: 650;
+        }
+
+        label {
+            display: block;
+            margin: 14px 0 6px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 650;
+            text-transform: uppercase;
+        }
+
+        select,
+        input,
+        button {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel-2);
+            color: var(--text);
+            font: inherit;
+        }
+
+        select,
+        input {
+            padding: 9px 10px;
+        }
+
+        button {
+            padding: 10px 12px;
+            margin-top: 10px;
+            cursor: pointer;
+            font-weight: 650;
+        }
+
+        button.primary {
+            border-color: #3aa67f;
+            background: #28785f;
+        }
+
+        button.secondary {
+            border-color: #9b713f;
+            background: #735229;
+        }
+
+        button:disabled {
+            cursor: wait;
+            opacity: 0.65;
+        }
+
+        .check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .check input {
+            width: auto;
+        }
+
+        #viewer {
+            width: 100%;
+            height: 100%;
+        }
+
+        #status,
+        #report {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .ok {
+            color: var(--accent);
+        }
+
+        .warn {
+            color: var(--accent-2);
+        }
+    </style>
+</head>
+<body>
+    <aside>
+        <h1>CAD Converter Workbench</h1>
+
+        <label for="fileSelect">GLB model</label>
+        <select id="fileSelect"></select>
+
+        <label for="outputName">STEP output</label>
+        <input id="outputName" value="" />
+
+        <label for="modeSelect">Reverse mode</label>
+        <select id="modeSelect">
+            <option value="advanced">Advanced guarded</option>
+            <option value="reconstructed">Reconstructed planes</option>
+            <option value="faceted">Faceted fallback</option>
+        </select>
+
+        <label class="check">
+            <input id="cylinderCheck" type="checkbox" />
+            Experimental analytic cylinders
+        </label>
+        <label class="check">
+            <input id="solidCheck" type="checkbox" />
+            Experimental closed-shell solids
+        </label>
+        <label class="check">
+            <input id="holeCheck" type="checkbox" />
+            Guarded planar holes (max 48 loop points)
+        </label>
+        <button id="validateBtn">Validate GLB</button>
+        <button id="convertBtn" class="primary">Convert to STEP</button>
+        <button id="assessBtn" class="secondary">Assess Modes</button>
+        <button id="probeHolesBtn" class="secondary">Probe Holes</button>
+        <button id="refreshBtn" class="secondary">Refresh Files</button>
+
+        <div id="status"></div>
+        <div id="report"></div>
+    </aside>
+
+    <main>
+        <div id="viewer"></div>
+    </main>
+
+    <script src="https://unpkg.com/three@0.146.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/three@0.146.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <script>
+        const fileSelect = document.getElementById("fileSelect");
+        const outputName = document.getElementById("outputName");
+        const modeSelect = document.getElementById("modeSelect");
+        const cylinderCheck = document.getElementById("cylinderCheck");
+        const solidCheck = document.getElementById("solidCheck");
+        const holeCheck = document.getElementById("holeCheck");
+        const statusEl = document.getElementById("status");
+        const reportEl = document.getElementById("report");
+        const validateBtn = document.getElementById("validateBtn");
+        const convertBtn = document.getElementById("convertBtn");
+        const assessBtn = document.getElementById("assessBtn");
+        const probeHolesBtn = document.getElementById("probeHolesBtn");
+        const refreshBtn = document.getElementById("refreshBtn");
+        const container = document.getElementById("viewer");
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x2c3138);
+
+        const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 5000);
+        camera.position.set(1, 1, 1);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio || 1);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        scene.add(new THREE.HemisphereLight(0xf4f7ff, 0x5f6875, 1.25));
+        const key = new THREE.DirectionalLight(0xffffff, 1.4);
+        key.position.set(2.5, 3, 2);
+        scene.add(key);
+        const fill = new THREE.DirectionalLight(0xdbe7ff, 0.9);
+        fill.position.set(-2, 1.5, 2.5);
+        scene.add(fill);
+
+        const loader = new THREE.GLTFLoader();
+        let model = null;
+
+        function setStatus(message, kind = "") {
+            statusEl.className = kind;
+            statusEl.textContent = message || "";
+        }
+
+        function setBusy(isBusy) {
+            validateBtn.disabled = isBusy;
+            convertBtn.disabled = isBusy;
+            assessBtn.disabled = isBusy;
+            probeHolesBtn.disabled = isBusy;
+            refreshBtn.disabled = isBusy;
+        }
+
+        function currentFile() {
+            return fileSelect.value;
+        }
+
+        function defaultOutputName(file) {
+            let suffix = modeSelect.value;
+            if (modeSelect.value === "reconstructed" && cylinderCheck.checked) suffix = "analytic_cylinders";
+            if (modeSelect.value === "reconstructed" && solidCheck.checked) suffix += "_solids";
+            if (modeSelect.value === "reconstructed" && holeCheck.checked) suffix += "_holes";
+            return file.replace(/\.(glb|gltf)$/i, `_${suffix}.step`);
+        }
+
+        function frameObject(obj) {
+            const box = new THREE.Box3().setFromObject(obj);
+            const size = new THREE.Vector3();
+            const center = new THREE.Vector3();
+            box.getSize(size);
+            box.getCenter(center);
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+            const dist = maxDim * 1.9;
+            controls.target.copy(center);
+            camera.position.set(center.x + dist, center.y + dist, center.z + dist);
+            camera.near = Math.max(0.001, dist / 500);
+            camera.far = dist * 80;
+            camera.updateProjectionMatrix();
+            controls.update();
+        }
+
+        function loadModel(file) {
+            if (model) scene.remove(model);
+            model = null;
+            reportEl.textContent = "";
+            setStatus(`Loading ${file}...`);
+            loader.load(file, (gltf) => {
+                model = gltf.scene;
+                scene.add(model);
+                model.traverse((obj) => {
+                    if (obj.isMesh && obj.material) {
+                        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+                        materials.forEach((mat) => mat.side = THREE.DoubleSide);
+                    }
+                });
+                frameObject(model);
+                setStatus(`Loaded ${file}`, "ok");
+            }, undefined, (err) => {
+                console.error(err);
+                setStatus(`Failed to load ${file}`, "warn");
+            });
+        }
+
+        async function refreshFiles() {
+            setBusy(true);
+            try {
+                const res = await fetch("/api/glbs");
+                const data = await res.json();
+                fileSelect.innerHTML = data.files.map((file) => `<option value="${file}">${file}</option>`).join("");
+                if (data.files.length) {
+                    outputName.value = defaultOutputName(data.files[0]);
+                    loadModel(data.files[0]);
+                } else {
+                    setStatus("No GLB files found.", "warn");
+                }
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function validateCurrent() {
+            const file = currentFile();
+            if (!file) return;
+            setBusy(true);
+            setStatus(`Validating ${file}...`);
+            try {
+                const res = await fetch(`/api/validate?file=${encodeURIComponent(file)}`);
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || "Validation warning");
+                reportEl.textContent =
+                    `nodes=${data.nodes}, meshes=${data.meshes}, materials=${data.materials}, primitives=${data.primitives}\n` +
+                    `colors=${data.colors}/${data.primitives}, normals=${data.normals}/${data.primitives}, named nodes=${data.namedNodes}/${data.nodes}`;
+                setStatus("Validation OK", "ok");
+            } catch (err) {
+                setStatus(err.message, "warn");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function convertCurrent() {
+            const file = currentFile();
+            if (!file) return;
+            setBusy(true);
+            setStatus(`Converting ${file} to STEP...`);
+            try {
+                const res = await fetch("/api/glb-to-step", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        file,
+                        output: outputName.value,
+                        mode: modeSelect.value,
+                        reconstructHoles: holeCheck.checked,
+                        maxHoleLoopPoints: 48,
+                        reconstructCylinders: cylinderCheck.checked,
+                        reconstructSpheres: true,
+                        reconstructCones: true,
+                        makeSolids: solidCheck.checked
+                    })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || "Conversion failed");
+                reportEl.textContent =
+                    `output=${data.output}\n` +
+                    `mode=${data.mode}, meshes=${data.meshes}, triangles=${data.inputTriangles}, faces=${data.exportedFaces}, skipped=${data.skippedFaces}\n` +
+                    `planar regions=${data.planarRegions}, holed regions=${data.holedPlanarRegions}, hole candidates=${data.cleanHoleCandidates}/${data.holeCandidates}, merged triangles=${data.mergedTriangles}, fallback faces=${data.fallbackFaces}\n` +
+                    `sewn=${data.sewingEnabled}, free edges=${data.sewnFreeEdges}, contiguous edges=${data.sewnContiguousEdges}\n` +
+                    `cylinder candidates=${data.cylinderCandidates}, cylinder triangles=${data.cylinderTriangles}, avg radius=${data.cylinderAverageRadius}\n` +
+                    `analytic cylinders=${data.analyticCylinders}, analytic cylinder triangles=${data.analyticCylinderTriangles}, skipped cylinders=${data.skippedCylinderCandidates}, boundary-trimmed=${data.boundaryTrimmedCylinders}\n` +
+                    `analytic cylinder fallback=${data.analyticCylinderFallback}\n` +
+                    `sphere candidates=${data.sphereCandidates}, analytic spheres=${data.analyticSpheres}, skipped spheres=${data.skippedSphereCandidates}\n` +
+                    `cone candidates=${data.coneCandidates}, analytic cones=${data.analyticCones}, skipped cones=${data.skippedConeCandidates}, avg cone angle=${data.coneAverageAngleDegrees}\n` +
+                    `topology valid=${data.topologyValid}, faces=${data.topologyFaces}, shells=${data.topologyShells}, closed shells=${data.topologyClosedShells}, solids=${data.topologySolids}\n` +
+                    `solid promotion=${data.solidPromotionEnabled}, promoted solids=${data.promotedSolids}, solid fallback=${data.solidPromotionFallback}`;
+                setStatus("STEP exported", "ok");
+            } catch (err) {
+                setStatus(err.message, "warn");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function assessCurrent() {
+            const file = currentFile();
+            if (!file) return;
+            setBusy(true);
+            setStatus(`Assessing ${file} across faceted, reconstructed, and advanced modes...`);
+            try {
+                const res = await fetch("/api/assess-reconstruction", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        file,
+                        modes: ["faceted", "reconstructed", "advanced"]
+                    })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || "Assessment failed");
+                reportEl.textContent = data.cases.map((item) =>
+                    `${item.ok ? "OK" : "FAIL"} ${item.mode}: ` +
+                    `quality=${item.quality}, size=${item.sizeMb} MB, faces=${item.faces}, ` +
+                    `holes=${item.cleanHoleCandidates}/${item.holeCandidates}, free edges=${item.freeEdges}, ` +
+                    `shells=${item.shells}, solids=${item.solids}, analytic cylinders=${item.analyticCylinders}, ` +
+                    `analytic spheres=${item.analyticSpheres}, cone candidates=${item.coneCandidates}, ` +
+                    `analytic cones=${item.analyticCones}, ` +
+                    `fallback=${item.analyticCylinderFallback}`
+                ).join("\n");
+                setStatus("Assessment OK", "ok");
+            } catch (err) {
+                setStatus(err.message, "warn");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function probeHolesCurrent() {
+            const file = currentFile();
+            if (!file) return;
+            setBusy(true);
+            setStatus(`Probing experimental hole reconstruction for ${file}...`);
+            try {
+                const res = await fetch("/api/probe-holes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        file,
+                        mode: "reconstructed",
+                        timeout: 180
+                    })
+                });
+                const data = await res.json();
+                const probe = data.probe || {};
+                reportEl.textContent =
+                    `ok=${data.ok}, crashed=${data.crashed}, timed out=${data.timedOut}, returncode=${data.returncodeHex || data.returncode}\n` +
+                    `stages=${(data.stages || []).join(",") || "none"}\n` +
+                    `holes=${probe.cleanHoleCandidates ?? "n/a"}/${probe.holeCandidates ?? "n/a"}, holed regions=${probe.holedPlanarRegions ?? "n/a"}\n` +
+                    `read ok=${probe.readOk ?? "n/a"}, faces=${probe.faces ?? "n/a"}, free edges=${probe.freeEdges ?? "n/a"}`;
+                setStatus(data.ok ? "Hole probe OK" : "Hole probe failed safely", data.ok ? "ok" : "warn");
+            } catch (err) {
+                setStatus(err.message, "warn");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        fileSelect.addEventListener("change", () => {
+            outputName.value = defaultOutputName(currentFile());
+            loadModel(currentFile());
+        });
+        modeSelect.addEventListener("change", () => {
+            outputName.value = defaultOutputName(currentFile());
+            cylinderCheck.disabled = modeSelect.value !== "reconstructed";
+            solidCheck.disabled = modeSelect.value !== "reconstructed";
+            holeCheck.disabled = modeSelect.value !== "reconstructed";
+        });
+        cylinderCheck.addEventListener("change", () => {
+            outputName.value = defaultOutputName(currentFile());
+        });
+        solidCheck.addEventListener("change", () => {
+            outputName.value = defaultOutputName(currentFile());
+        });
+        holeCheck.addEventListener("change", () => {
+            outputName.value = defaultOutputName(currentFile());
+        });
+        validateBtn.addEventListener("click", validateCurrent);
+        convertBtn.addEventListener("click", convertCurrent);
+        assessBtn.addEventListener("click", assessCurrent);
+        probeHolesBtn.addEventListener("click", probeHolesCurrent);
+        refreshBtn.addEventListener("click", refreshFiles);
+
+        function resize() {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height, false);
+        }
+
+        window.addEventListener("resize", resize);
+        resize();
+
+        (function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        })();
+
+        refreshFiles();
+    </script>
+</body>
+</html>

@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAD Converter Workbench</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101412;
+      --panel: #18201c;
+      --panel-soft: #202c26;
+      --text: #f2f0e9;
+      --muted: #a8b0a9;
+      --accent: #f2b15e;
+      --accent-2: #65d3a5;
+      --danger: #ff7a7a;
+      --border: #314038;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Aptos", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(242, 177, 94, 0.18), transparent 32rem),
+        radial-gradient(circle at 80% 0%, rgba(101, 211, 165, 0.14), transparent 28rem),
+        linear-gradient(135deg, #0d1110, var(--bg));
+    }
+
+    main {
+      width: min(980px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 40px 0;
+    }
+
+    header {
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 5vw, 4.8rem);
+      letter-spacing: -0.07em;
+      line-height: 0.92;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+      gap: 18px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: rgba(24, 32, 28, 0.86);
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.28);
+      padding: 22px;
+      backdrop-filter: blur(14px);
+    }
+
+    label {
+      display: block;
+      margin: 0 0 7px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    select,
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--panel-soft);
+      color: var(--text);
+      padding: 12px 13px;
+      font: inherit;
+      outline: none;
+    }
+
+    select:focus,
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(242, 177, 94, 0.15);
+    }
+
+    .field {
+      margin-bottom: 17px;
+    }
+
+    .checks {
+      display: grid;
+      gap: 10px;
+      margin: 14px 0 20px;
+    }
+
+    .check {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .check input {
+      margin-top: 3px;
+      accent-color: var(--accent);
+    }
+
+    .check span {
+      display: block;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .check small {
+      display: block;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      color: #17130d;
+      background: var(--accent);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      color: var(--text);
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .status {
+      min-height: 180px;
+      white-space: pre-wrap;
+      overflow: auto;
+      border-radius: 18px;
+      padding: 15px;
+      background: #0b0e0d;
+      color: #d8ded8;
+      line-height: 1.5;
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.88rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 7px 11px;
+      margin: 0 7px 8px 0;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 0.86rem;
+    }
+
+    .ok {
+      color: var(--accent-2);
+    }
+
+    .bad {
+      color: var(--danger);
+    }
+
+    @media (max-width: 780px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        padding: 24px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>CAD Converter Workbench</h1>
+      <p class="lede">
+        One-click local testing for GLB to STEP. Use Advanced for the cleanest result:
+        it reconstructs planar CAD faces, keeps stable analytic cylinders, and promotes
+        closed shells to solids where OpenCascade accepts them.
+      </p>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <div class="field">
+          <label for="file">Input GLB</label>
+          <select id="file"></select>
+        </div>
+
+        <div class="field">
+          <label for="mode">Reverse Mode</label>
+          <select id="mode">
+            <option value="advanced" selected>Advanced - recommended</option>
+            <option value="reconstructed">Reconstructed - planar faces</option>
+            <option value="faceted">Faceted - triangle fallback</option>
+          </select>
+        </div>
+
+        <div class="checks">
+          <label class="check">
+            <input id="cylinders" type="checkbox" checked>
+            <span>
+              Analytic cylinders
+              <small>For reconstructed mode, attempt cylinder surfaces instead of flat triangle patches.</small>
+            </span>
+          </label>
+
+          <label class="check">
+            <input id="solids" type="checkbox" checked>
+            <span>
+              Promote solids
+              <small>Turn closed shells into STEP solids when the topology is watertight.</small>
+            </span>
+          </label>
+
+          <label class="check">
+            <input id="holes" type="checkbox">
+            <span>
+              Guarded holes
+              <small>Export simple planar inner loops, skipping complex loops over 48 points.</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="output">Output STEP Name</label>
+          <input id="output" type="text" spellcheck="false">
+        </div>
+
+        <div class="actions">
+          <button id="convert">Convert to STEP</button>
+          <button id="assess" class="secondary">Assess Modes</button>
+          <button id="probeHoles" class="secondary">Probe Holes</button>
+          <button id="validate" class="secondary">Validate GLB</button>
+          <button id="refresh" class="secondary">Refresh Files</button>
+        </div>
+      </div>
+
+      <aside class="card">
+        <div>
+          <span class="pill">Local server</span>
+          <span class="pill">OpenCascade</span>
+          <span class="pill">GLB -> STEP</span>
+        </div>
+        <div id="status" class="status">Loading GLB files...</div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const fileSelect = document.querySelector("#file");
+    const modeSelect = document.querySelector("#mode");
+    const outputInput = document.querySelector("#output");
+    const cylindersInput = document.querySelector("#cylinders");
+    const solidsInput = document.querySelector("#solids");
+    const holesInput = document.querySelector("#holes");
+    const statusBox = document.querySelector("#status");
+    const convertButton = document.querySelector("#convert");
+    const assessButton = document.querySelector("#assess");
+    const probeHolesButton = document.querySelector("#probeHoles");
+    const validateButton = document.querySelector("#validate");
+    const refreshButton = document.querySelector("#refresh");
+
+    function setStatus(message, kind = "") {
+      statusBox.className = `status ${kind}`;
+      statusBox.textContent = message;
+    }
+
+    function selectedFileStem() {
+      const name = fileSelect.value || "converted.glb";
+      return name.replace(/\.[^.]+$/, "");
+    }
+
+    function defaultOutputName() {
+      const suffix = modeSelect.value === "advanced" ? "advanced" : modeSelect.value;
+      return `${selectedFileStem()}_${suffix}.step`;
+    }
+
+    function syncOutput(force = false) {
+      if (force || !outputInput.value.trim()) {
+        outputInput.value = defaultOutputName();
+      }
+    }
+
+    function syncControls() {
+      const reconstructed = modeSelect.value === "reconstructed";
+      cylindersInput.disabled = !reconstructed;
+      solidsInput.disabled = !reconstructed;
+      holesInput.disabled = !reconstructed;
+      syncOutput(true);
+    }
+
+    async function requestJson(url, options) {
+      const response = await fetch(url, options);
+      const text = await response.text();
+      let payload = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+      }
+      return payload;
+    }
+
+    async function refreshFiles() {
+      refreshButton.disabled = true;
+      try {
+        const payload = await requestJson("/api/glbs");
+        fileSelect.innerHTML = "";
+        for (const file of payload.files || []) {
+          const name = typeof file === "string" ? file : file.name;
+          const detail = typeof file === "string" ? "" : ` (${file.size_mb} MB)`;
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = `${name}${detail}`;
+          fileSelect.appendChild(option);
+        }
+        if (!fileSelect.options.length) {
+          setStatus("No GLB files found in this workbench folder.", "bad");
+          return;
+        }
+        syncOutput(true);
+        setStatus(`Found ${fileSelect.options.length} GLB file(s). Choose one and press Convert to STEP.`, "ok");
+      } catch (error) {
+        setStatus(`Could not list GLB files:\n${error.message}`, "bad");
+      } finally {
+        refreshButton.disabled = false;
+      }
+    }
+
+    async function validateGlb() {
+      if (!fileSelect.value) return;
+      validateButton.disabled = true;
+      setStatus(`Validating ${fileSelect.value}...`);
+      try {
+        const payload = await requestJson(`/api/validate?file=${encodeURIComponent(fileSelect.value)}`);
+        setStatus(JSON.stringify(payload, null, 2), payload.ok ? "ok" : "bad");
+      } catch (error) {
+        setStatus(`Validation failed:\n${error.message}`, "bad");
+      } finally {
+        validateButton.disabled = false;
+      }
+    }
+
+    async function convertGlb() {
+      if (!fileSelect.value) return;
+      convertButton.disabled = true;
+      setStatus(`Converting ${fileSelect.value} to ${outputInput.value || defaultOutputName()}...`);
+      try {
+        const payload = await requestJson("/api/glb-to-step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file: fileSelect.value,
+            output: outputInput.value || defaultOutputName(),
+            mode: modeSelect.value,
+            reconstructHoles: holesInput.checked,
+            maxHoleLoopPoints: 48,
+            reconstructCylinders: cylindersInput.checked,
+            reconstructSpheres: true,
+            reconstructCones: true,
+            makeSolids: solidsInput.checked
+          })
+        });
+        setStatus(JSON.stringify(payload, null, 2), "ok");
+      } catch (error) {
+        setStatus(`Conversion failed:\n${error.message}`, "bad");
+      } finally {
+        convertButton.disabled = false;
+      }
+    }
+
+    async function assessModes() {
+      if (!fileSelect.value) return;
+      assessButton.disabled = true;
+      setStatus(`Assessing reconstruction modes for ${fileSelect.value}...\nThis can take a minute on larger meshes.`);
+      try {
+        const payload = await requestJson("/api/assess-reconstruction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file: fileSelect.value,
+            modes: ["faceted", "reconstructed", "advanced"]
+          })
+        });
+        const lines = [`Assessment ${payload.ok ? "passed" : "failed"}:`];
+        for (const item of payload.cases || []) {
+          lines.push(
+            `${item.ok ? "OK" : "FAIL"} ${item.mode}: ` +
+            `quality=${item.quality}, size=${item.sizeMb} MB, faces=${item.faces}, ` +
+            `holes=${item.cleanHoleCandidates}/${item.holeCandidates}, free_edges=${item.freeEdges}, ` +
+            `shells=${item.shells}, solids=${item.solids}, ` +
+            `analytic_cylinders=${item.analyticCylinders}, analytic_spheres=${item.analyticSpheres}, ` +
+            `cone_candidates=${item.coneCandidates}, analytic_cones=${item.analyticCones}, ` +
+            `fallback=${item.analyticCylinderFallback}`
+          );
+        }
+        setStatus(lines.join("\n"), payload.ok ? "ok" : "bad");
+      } catch (error) {
+        setStatus(`Assessment failed:\n${error.message}`, "bad");
+      } finally {
+        assessButton.disabled = false;
+      }
+    }
+
+    async function probeHoles() {
+      if (!fileSelect.value) return;
+      probeHolesButton.disabled = true;
+      setStatus(`Probing experimental hole reconstruction for ${fileSelect.value}...\nThis runs isolated so a native OpenCascade crash should not stop the workbench.`);
+      try {
+        const payload = await requestJson("/api/probe-holes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file: fileSelect.value,
+            mode: "reconstructed",
+            timeout: 180
+          })
+        });
+        const probe = payload.probe || {};
+        const lines = [
+          `Hole probe ${payload.ok ? "passed" : "failed"}`,
+          `crashed=${payload.crashed}, timed_out=${payload.timedOut}, returncode=${payload.returncodeHex || payload.returncode}`,
+          `stages=${(payload.stages || []).join(",") || "none"}`,
+          `holes=${probe.cleanHoleCandidates ?? "n/a"}/${probe.holeCandidates ?? "n/a"}, holed_regions=${probe.holedPlanarRegions ?? "n/a"}`,
+          `read_ok=${probe.readOk ?? "n/a"}, faces=${probe.faces ?? "n/a"}, free_edges=${probe.freeEdges ?? "n/a"}`
+        ];
+        setStatus(lines.join("\n"), payload.ok ? "ok" : "bad");
+      } catch (error) {
+        setStatus(`Hole probe failed:\n${error.message}`, "bad");
+      } finally {
+        probeHolesButton.disabled = false;
+      }
+    }
+
+    fileSelect.addEventListener("change", () => syncOutput(true));
+    modeSelect.addEventListener("change", syncControls);
+    refreshButton.addEventListener("click", refreshFiles);
+    validateButton.addEventListener("click", validateGlb);
+    convertButton.addEventListener("click", convertGlb);
+    assessButton.addEventListener("click", assessModes);
+    probeHolesButton.addEventListener("click", probeHoles);
+
+    syncControls();
+    refreshFiles();
+  </script>
+</body>
+</html>

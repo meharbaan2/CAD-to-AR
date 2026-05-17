@@ -317,6 +317,30 @@ __pycache__/
 *.egg-info/
 *.pyc
 
+# Solid Edge files created when importing STEP assemblies with OCCT's default product name.
+Open CASCADE STEP translator*.par
+*_faceted.asm
+*_faceted.cfg
+*_faceted_sub*.asm
+
+# Local CAD conversion test artifacts.
+*_advanced.step
+*_analytic_cylinders.step
+*_analytic_cylinders_solids.step
+*_faceted.step
+*_reconstructed.step
+*_solids.step
+*_hole_probe.step
+*_debug.glb
+*_direct.glb
+*_fixed.glb
+*_instances.glb
+workbench.log
+workbench.err.log
+selftest_outputs/
+primitive_selftest_outputs/
+reconstruction_assessment/
+
 # Cake - Uncomment if you are using it
 # tools/**
 # !tools/packages.config
