@@ -71,6 +71,10 @@
             line-height: 1.4;
         }
 
+        .hidden {
+            display: none !important;
+        }
+
         label {
             display: block;
             margin: 14px 0 6px;
@@ -158,7 +162,13 @@
     <aside>
         <h1>CAD Converter Workbench</h1>
 
-        <section class="section">
+        <label for="directionSelect">What do you want to convert?</label>
+        <select id="directionSelect">
+            <option value="step-to-glb">STEP/STP to GLB</option>
+            <option value="glb-to-step">GLB to STEP</option>
+        </select>
+
+        <section id="stepPanel" class="section">
             <div class="section-title">STEP to GLB</div>
             <p class="hint">Forward export for AR/viewer use. Preserves assembly hierarchy, part names, colors, and available material data from STEP/XCAF.</p>
 
@@ -185,7 +195,7 @@
             <button id="stepConvertBtn" class="primary">Convert STEP to GLB</button>
         </section>
 
-        <section class="section">
+        <section id="glbPanel" class="section hidden">
             <div class="section-title">GLB to STEP</div>
             <p class="hint">Reverse reconstruction for CAD handoff. Advanced is the default; reconstructed is safer; faceted is the heavy fallback.</p>
 
@@ -235,6 +245,9 @@
     <script src="https://unpkg.com/three@0.146.0/examples/js/loaders/GLTFLoader.js"></script>
 
     <script>
+        const directionSelect = document.getElementById("directionSelect");
+        const stepPanel = document.getElementById("stepPanel");
+        const glbPanel = document.getElementById("glbPanel");
         const fileSelect = document.getElementById("fileSelect");
         const stepFileSelect = document.getElementById("stepFileSelect");
         const outputName = document.getElementById("outputName");
@@ -287,6 +300,12 @@
         function setStatus(message, kind = "") {
             statusEl.className = kind;
             statusEl.textContent = message || "";
+        }
+
+        function syncDirection() {
+            const stepToGlb = directionSelect.value === "step-to-glb";
+            stepPanel.classList.toggle("hidden", !stepToGlb);
+            glbPanel.classList.toggle("hidden", stepToGlb);
         }
 
         function setBusy(isBusy) {
@@ -557,6 +576,7 @@
         stepFileSelect.addEventListener("change", () => {
             glbOutputName.value = defaultGlbOutputName(currentStepFile());
         });
+        directionSelect.addEventListener("change", syncDirection);
         modeSelect.addEventListener("change", () => {
             outputName.value = defaultOutputName(currentFile());
             cylinderCheck.disabled = modeSelect.value !== "reconstructed";
@@ -597,6 +617,7 @@
         })();
 
         refreshFiles();
+        syncDirection();
     </script>
 </body>
 </html>

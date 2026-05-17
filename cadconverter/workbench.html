@@ -73,6 +73,14 @@
       backdrop-filter: blur(14px);
     }
 
+    .route-card {
+      grid-column: 1 / -1;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
     label {
       display: block;
       margin: 0 0 7px;
@@ -227,7 +235,26 @@
     </header>
 
     <section class="grid">
-      <div class="card">
+      <div class="card route-card">
+        <div>
+          <span class="pill">Choose conversion</span>
+          <span class="pill">One panel at a time</span>
+        </div>
+
+        <div class="field">
+          <label for="direction">What do you want to convert?</label>
+          <select id="direction">
+            <option value="step-to-glb" selected>STEP/STP to GLB</option>
+            <option value="glb-to-step">GLB to STEP</option>
+          </select>
+        </div>
+
+        <div class="actions">
+          <button id="refresh" class="secondary">Refresh Files</button>
+        </div>
+      </div>
+
+      <div id="stepPanel" class="card">
         <div>
           <span class="pill">Forward</span>
           <span class="pill">STEP -> GLB</span>
@@ -276,7 +303,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div id="glbPanel" class="card hidden">
         <div>
           <span class="pill">Reverse</span>
           <span class="pill">GLB -> STEP</span>
@@ -332,7 +359,6 @@
           <button id="assess" class="secondary">Assess Modes</button>
           <button id="probeHoles" class="secondary">Probe Holes</button>
           <button id="validate" class="secondary">Validate GLB</button>
-          <button id="refresh" class="secondary">Refresh Files</button>
         </div>
       </div>
 
@@ -348,6 +374,9 @@
   </main>
 
   <script>
+    const directionSelect = document.querySelector("#direction");
+    const stepPanel = document.querySelector("#stepPanel");
+    const glbPanel = document.querySelector("#glbPanel");
     const fileSelect = document.querySelector("#file");
     const stepFileSelect = document.querySelector("#stepFile");
     const modeSelect = document.querySelector("#mode");
@@ -371,6 +400,12 @@
     function setStatus(message, kind = "") {
       statusBox.className = `status ${kind}`;
       statusBox.textContent = message;
+    }
+
+    function syncDirection() {
+      const stepToGlb = directionSelect.value === "step-to-glb";
+      stepPanel.classList.toggle("hidden", !stepToGlb);
+      glbPanel.classList.toggle("hidden", stepToGlb);
     }
 
     function selectedFileStem() {
@@ -616,6 +651,7 @@
 
     stepFileSelect.addEventListener("change", () => syncGlbOutput(true));
     fileSelect.addEventListener("change", () => syncOutput(true));
+    directionSelect.addEventListener("change", syncDirection);
     modeSelect.addEventListener("change", syncControls);
     convertStepButton.addEventListener("click", convertStep);
     refreshButton.addEventListener("click", refreshFiles);
@@ -625,6 +661,7 @@
     probeHolesButton.addEventListener("click", probeHoles);
 
     syncControls();
+    syncDirection();
     refreshFiles();
   </script>
 </body>
