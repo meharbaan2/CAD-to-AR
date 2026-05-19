@@ -273,6 +273,8 @@ For STEP/STP to GLB, output should contain:
 
 For GLB to STEP, output may contain:
 
+![GLB to STEP conversion result](docs/assets/glb-to-step-result.png)
+
 - one STEP compound built from the GLB scene meshes
 - reconstructed planar STEP faces
 - sewn shell-style topology
