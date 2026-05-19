@@ -17,6 +17,11 @@ dependencies = [
     "pygltflib"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
 [project.scripts]
 cadconverter = "cadconverter.cli:main"
 

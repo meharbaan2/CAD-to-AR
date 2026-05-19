@@ -9,6 +9,8 @@ The forward path reads STEP assemblies through OpenCascade XCAF and exports hier
 
 Built with `pythonocc-core`, `trimesh`, `pygltflib`, and a local browser workbench.
 
+![CADConverter workbench](docs/assets/workbench.png)
+
 ## Current Status
 
 This is ready as a practical local package/prototype.
@@ -205,6 +207,19 @@ Reverse GLB to STEP:
 
 ## Testing And Diagnostics
 
+Run the lightweight automated smoke tests:
+
+```bash
+python -m unittest discover -s tests
+```
+
+If you install development extras, the same tests can be discovered by pytest:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
 Run reverse-conversion smoke tests on available GLBs:
 
 ```bash
@@ -232,6 +247,8 @@ cadconverter probe-holes "model.glb"
 `probe-holes` runs in an isolated child Python process. If OpenCascade hits a native access violation, the main CLI/workbench should survive and report the child crash, commonly as `0xC0000005` on Windows.
 
 ## Expected Outputs
+
+For a deeper pipeline explanation, see [`docs/architecture.md`](docs/architecture.md).
 
 For STEP/STP to GLB, output should contain:
 
