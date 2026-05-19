@@ -52,6 +52,13 @@ conda create -n cad2ar python=3.10
 conda activate cad2ar
 ```
 
+Clone the repository and enter the project folder:
+
+```bash
+git clone <your-repo-url>
+cd <repo-folder>
+```
+
 Install OpenCascade from Conda Forge, then install this package:
 
 ```bash
@@ -63,10 +70,9 @@ pip install -e .
 
 ## Start The Workbench
 
-From the project folder:
+From the repository folder:
 
 ```bash
-cd "D:\Coding\Python\CAD to ARVR\CadConverter"
 conda activate cad2ar
 cadconverter workbench --directory . --host 127.0.0.1 --port 8765
 ```
