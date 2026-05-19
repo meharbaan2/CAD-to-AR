@@ -308,6 +308,13 @@
             glbPanel.classList.toggle("hidden", stepToGlb);
         }
 
+        function initializeDirection() {
+            const direction = new URLSearchParams(window.location.search).get("direction");
+            if (direction === "step-to-glb" || direction === "glb-to-step") {
+                directionSelect.value = direction;
+            }
+        }
+
         function setBusy(isBusy) {
             stepConvertBtn.disabled = isBusy;
             validateBtn.disabled = isBusy;
@@ -576,7 +583,12 @@
         stepFileSelect.addEventListener("change", () => {
             glbOutputName.value = defaultGlbOutputName(currentStepFile());
         });
-        directionSelect.addEventListener("change", syncDirection);
+        directionSelect.addEventListener("change", () => {
+            syncDirection();
+            const url = new URL(window.location.href);
+            url.searchParams.set("direction", directionSelect.value);
+            window.history.replaceState({}, "", url);
+        });
         modeSelect.addEventListener("change", () => {
             outputName.value = defaultOutputName(currentFile());
             cylinderCheck.disabled = modeSelect.value !== "reconstructed";
@@ -617,6 +629,7 @@
         })();
 
         refreshFiles();
+        initializeDirection();
         syncDirection();
     </script>
 </body>

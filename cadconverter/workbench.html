@@ -408,6 +408,13 @@
       glbPanel.classList.toggle("hidden", stepToGlb);
     }
 
+    function initializeDirection() {
+      const direction = new URLSearchParams(window.location.search).get("direction");
+      if (direction === "step-to-glb" || direction === "glb-to-step") {
+        directionSelect.value = direction;
+      }
+    }
+
     function selectedFileStem() {
       const name = fileSelect.value || "converted.glb";
       return name.replace(/\.[^.]+$/, "");
@@ -651,7 +658,12 @@
 
     stepFileSelect.addEventListener("change", () => syncGlbOutput(true));
     fileSelect.addEventListener("change", () => syncOutput(true));
-    directionSelect.addEventListener("change", syncDirection);
+    directionSelect.addEventListener("change", () => {
+      syncDirection();
+      const url = new URL(window.location.href);
+      url.searchParams.set("direction", directionSelect.value);
+      window.history.replaceState({}, "", url);
+    });
     modeSelect.addEventListener("change", syncControls);
     convertStepButton.addEventListener("click", convertStep);
     refreshButton.addEventListener("click", refreshFiles);
@@ -661,6 +673,7 @@
     probeHolesButton.addEventListener("click", probeHoles);
 
     syncControls();
+    initializeDirection();
     syncDirection();
     refreshFiles();
   </script>

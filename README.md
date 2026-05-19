@@ -9,7 +9,13 @@ The forward path reads STEP assemblies through OpenCascade XCAF and exports hier
 
 Built with `pythonocc-core`, `trimesh`, `pygltflib`, and a local browser workbench.
 
-![CADConverter workbench](docs/assets/workbench.png)
+STEP/STP to GLB workbench:
+
+![STEP/STP to GLB workbench](docs/assets/workbench-step-to-glb.png)
+
+GLB to STEP workbench:
+
+![GLB to STEP workbench](docs/assets/workbench-glb-to-step.png)
 
 ## Current Status
 
